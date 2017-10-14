@@ -63,7 +63,6 @@ class App{
 
 		this.server = http.createServer((req, res)=>{
 			const reqInfos = url.parse(req.url, true);
-			console.time(reqInfos.pathname);
 
 			if(reqInfos.pathname in staticFiles){
 				const [contentType, fileContent] = staticFiles[reqInfos.pathname];
@@ -94,7 +93,6 @@ class App{
 				res.write(fileContent, 'utf-8');
 				res.end();
 			}
-			console.timeEnd(reqInfos.pathname);
 		})
 		.on('clientError', (err, socket) => {
 			socket.end('HTTP/1.1 400 Bad Request\r\n\r\n');
