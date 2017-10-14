@@ -1,0 +1,31 @@
+{
+  "name": "spa-simple",
+  "version": "0.0.1",
+  "description": "simple spa framework",
+  "main": "index.js",
+  "devDependencies": {},
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Drulac/spa-simple.git"
+  },
+  "keywords": [
+    "spa",
+    "framework"
+  ],
+  "author": "Drulac <drulac@protonmail.com> (https://github.com/Drulac/)",
+  "license": "UNLICENSED",
+  "bugs": {
+    "url": "https://github.com/Drulac/spa-simple/issues"
+  },
+  "homepage": "https://github.com/Drulac/spa-simple#readme",
+  "dependencies": {
+    "html-minifier": "^3.5.5",
+    "socket.io-with-get": "^1.2.0",
+    "then-fs": "^2.0.0",
+    "uws": "^8.14.1",
+    "uws-with-on.js": "^1.2.1"
+  }
+}
