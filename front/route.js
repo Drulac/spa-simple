@@ -4,7 +4,7 @@ var socket = new WebSocket(`ws://${window.location.hostname}:5000`);
 
 const templateCache = {};
 
-const req = (url, data)=>
+const req = (url)=>
 new Promise(async (resolve, reject)=>{
 	if(url in templateCache)
 	{
@@ -12,7 +12,7 @@ new Promise(async (resolve, reject)=>{
 	}else{
 		const request = new XMLHttpRequest();
 
-		request.open('GET', `/${url}?${data}`, true);
+		request.open('GET', url, true);
 		request.send();
 		request.onreadystatechange = ()=>{
 			if (request.readyState === XMLHttpRequest.DONE)
@@ -28,12 +28,13 @@ new Promise(async (resolve, reject)=>{
 	}
 });
 
-const loadPage = async uri=>{
+const loadPage = async (uri, params)=>{
+	console.time(`loading ${uri}`)
 	setUrl(uri);
 
 	const [templateCode, data] = await Promise.all([
-		req(uri+'.tpl'),
-		socket.get(uri, [])
+		req(`/${uri}.tpl`),
+		socket.get(uri, params || [])
 	]);
 
 	const props = Object.getOwnPropertyNames(data);
@@ -41,6 +42,21 @@ const loadPage = async uri=>{
 	const args = props.map(prop=>data[prop]);
 
 	document.body.innerHTML = (func)(...args);
+
+	for(let child of document.body.childNodes)
+	{
+		if(child.localName === 'script')
+		{
+			if(child.src)
+			{
+				eval(await req(child.src));
+			}else{
+				eval(child.text || child.textContent || child.innerHTML || "");
+			}
+		}
+	}
+
+	console.timeEnd(`loading ${uri}`);
 };
 
 socket.onopen = async ()=>{
@@ -49,3 +65,19 @@ socket.onopen = async ()=>{
 
 	loadPage(window.location.pathname.substr(1));
 };
+
+const handleFormSend = function(self, uri)
+{
+	const args = Array.from(self.childNodes)
+	.filter(e=>
+		e instanceof HTMLInputElement && e.type != "submit"
+	).reduce((sum, e)=>{
+		sum[e.name] = e.value;
+		return sum;
+	}, {});
+
+	console.log(args);
+
+	loadPage(uri, args);
+	return false;
+}

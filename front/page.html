@@ -6,6 +6,8 @@
 	<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
 	<script src="front/socket-with-on-get.js"></script>
 	<script src="front/route.js"></script>
+	${baseCSS.map(file=>'<link href="'+file+'" rel="stylesheet" />').join('')}
+	${baseJS.map(file=>'<script src="'+file+'"></script>').join('')}
 </head>
 <body>
 
