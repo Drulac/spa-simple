@@ -41,6 +41,8 @@ const include = async(uri, params, dt)=>{
 		return include(uri, params, data);
 	};
 
+	console.log(data);
+
 	const props = Object.getOwnPropertyNames(data);
 	const func = new Function(...props, `return (async (strings, ...args)=>{
 

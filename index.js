@@ -213,7 +213,7 @@ class App{
 			let includes = [];
 			let dt = await fn({form: args, user, include: uri=>includes.push(uri)});
 
-			includes.forEachA(async uri=>{
+			await includes.forEachA(async uri=>{
 				await (self.events.filter(([fileName, cb])=> fileName === uri))[0][1]
 				.call(this, args, data=>{
 					Object.assign(dt, data);
