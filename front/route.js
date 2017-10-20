@@ -1,6 +1,7 @@
 const setUrl = url=>history.pushState({}, '', url);
 
-var socket = new WebSocket(`ws://${window.location.hostname}:5000`);
+let socket = new WebSocket(`ws://${window.location.hostname}:5000`);
+//let socket = new WebSocket(`wss://0.tcp.ngrok.io:13924`);
 
 const templateCache = {};
 
@@ -28,20 +29,42 @@ new Promise(async (resolve, reject)=>{
 	}
 });
 
-const loadPage = async (uri, params)=>{
-	console.time(`loading ${uri}`)
-	setUrl(uri);
+const include = async(uri, params, dt)=>{
+	console.time(`load ${uri}`);
 
-	const [templateCode, data] = await Promise.all([
+	let [templateCode, data] = await Promise.all([
 		req(`/${uri}.tpl`),
-		socket.get(uri, params || [])
+		dt ? new Promise(resolve=>resolve(dt)) : socket.get(uri, params || null)
 	]);
 
+	data.include = async uri=>{
+		return include(uri, params, data);
+	};
+
 	const props = Object.getOwnPropertyNames(data);
-	const func = new Function(...props, 'return `'+templateCode+'`');
+	const func = new Function(...props, `return (async (strings, ...args)=>{
+
+		for(let id in args){
+			if(args[id] instanceof Promise)
+			{
+				args[id] = await args[id].catch((err)=>{throw err});
+			}
+		}
+
+		return strings.reduce((prev, curr, idx) => prev + curr + (args[idx] !== undefined ? args[idx] : ''), '');
+	})\`${templateCode}\``);
 	const args = props.map(prop=>data[prop]);
 
-	document.body.innerHTML = (func)(...args);
+	console.timeEnd(`load ${uri}`);
+	return (func)(...args);
+}
+
+const loadPage = async (uri, params)=>{
+	console.time(`loading ${uri}`);
+
+	setUrl(uri);
+
+	document.body.innerHTML = await include(uri, params);
 
 	for(let child of document.body.childNodes)
 	{
