@@ -1,6 +1,6 @@
 const setUrl = url=>history.pushState({}, '', url);
 
-let socket = new WebSocket(`ws://${window.location.hostname}:5000`);
+let socket = new WebSocket(`ws://${window.location.host}`);
 //let socket = new WebSocket(`wss://0.tcp.ngrok.io:13924`);
 
 const templateCache = {};
@@ -37,34 +37,44 @@ const include = async(uri, params, dt)=>{
 		dt ? new Promise(resolve=>resolve(dt)) : socket.get(uri, params || null)
 	]);
 
-	data.include = async uri=>{
-		return include(uri, params, data);
-	};
+	if('redirect' in data)
+	{
+		setUrl(data.redirect);
 
-	console.log(data);
+		return await include(data.redirect, null);
+	}else{
+		data.include = async uri=>{
+			return include(uri, params, data);
+		};
 
-	const props = Object.getOwnPropertyNames(data);
-	const func = new Function(...props, `return (async (strings, ...args)=>{
+		const props = Object.getOwnPropertyNames(data);
+		const func = new Function(...props, `return (async (strings, ...args)=>{
 
-		for(let id in args){
-			if(args[id] instanceof Promise)
-			{
-				args[id] = await args[id].catch((err)=>{throw err});
+			for(let id in args){
+				if(args[id] instanceof Promise)
+				{
+					args[id] = await args[id].catch((err)=>{throw err});
+				}
 			}
-		}
 
-		return strings.reduce((prev, curr, idx) => prev + curr + (args[idx] !== undefined ? args[idx] : ''), '');
-	})\`${templateCode}\``);
-	const args = props.map(prop=>data[prop]);
+			return strings.reduce((prev, curr, idx) => prev + curr + (args[idx] !== undefined ? args[idx] : ''), '');
+		})\`${templateCode}\``);
+		const args = props.map(prop=>data[prop]);
 
-	console.timeEnd(`load ${uri}`);
-	return (func)(...args);
+		console.timeEnd(`load ${uri}`);
+		return (func)(...args);
+	}
 }
+
+const parseArgs = ()=>location.search.substr(1).split("&").map(e=>e.split("=")).reduce((result, [key, val])=>key !== '' ? (val ? Object.assign(result,	{[key]: (val=>{try{return JSON.parse(val)}catch(e){return val}})(decodeURIComponent(val))}) : Object.assign(result, {[key]: true})) : result, {});
 
 const loadPage = async (uri, params)=>{
 	console.time(`loading ${uri}`);
 
 	setUrl(uri);
+	params = Object.assign(params || {}, parseArgs() || {});
+
+	uri = uri.split('?')[0];
 
 	document.body.innerHTML = await include(uri, params);
 
@@ -84,24 +94,31 @@ const loadPage = async (uri, params)=>{
 	console.timeEnd(`loading ${uri}`);
 };
 
-socket.onopen = async ()=>{
-	socket = new SocketWithOn(socket);
-	socket = new Socket(socket);
+//preload
+req(`/${window.location.pathname.substr(1)}.tpl`);
 
-	loadPage(window.location.pathname.substr(1));
+socket.onopen = async ()=>{
+	const sock = new SocketWithOn(socket);
+	socket = new Socket(sock);
+
+	console.log(localStorage.getItem('id'));
+	sock.write('loadId', localStorage.getItem('id'));
+
+	sock.on('loadId', id=>{
+		localStorage.setItem('id', id);
+		loadPage(window.location.pathname.substr(1)+window.location.search);
+	});
 };
 
 const handleFormSend = function(self, uri)
 {
 	const args = Array.from(self.childNodes)
-	.filter(e=>
-		e instanceof HTMLInputElement && e.type != "submit"
-	).reduce((sum, e)=>{
+	.filter(e=>{
+		return (e instanceof HTMLInputElement && e.type != "submit") || (e instanceof HTMLTextAreaElement)
+	}).reduce((sum, e)=>{
 		sum[e.name] = e.value;
 		return sum;
 	}, {});
-
-	console.log(args);
 
 	loadPage(uri, args);
 	return false;

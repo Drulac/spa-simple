@@ -2,6 +2,7 @@ const http = require('http');
 const path = require('path');
 const EventEmitter = require('events').EventEmitter;
 const url = require('url');
+const util = require('util');
 
 const templateCompiler = require('./libs/templateCompiler.js');
 
@@ -10,6 +11,7 @@ const htmlMinifier = require('html-minifier').minify;
 const WebSocketServer = require('uws').Server;
 const SocketWithOn = require('uws-with-on.js');
 const Socket = require('socket.io-with-get');
+const Big = require('big.js');
 require('array-async-methods');
 
 const contentTypes = {
@@ -26,10 +28,11 @@ const basePageDir = 'front/page.html';
 class App{
 	constructor(){
 		this.templates = {};
-		this.sockets = [];
 		this.events = [];
-		this.clients = [];
-		this.initClient = ()=>({});
+		this.sockets = {};
+		this.saveSession = async (token, user)=>{throw 'no saveSession'};
+		this.loadSession = async token=>{};
+		this.isSession = async token=>{};
 		this.baseCss = [];
 		this.baseJs = [];
 		this.staticFiles = [
@@ -102,28 +105,60 @@ class App{
 		});
 	}
 
+	_addAllEventsToASocket(socket){
+		this.events.forEach(([e, cb])=>socket.on(e, cb));
+	}
+
 	listen (port){
 		this.server.listen(port);
 
-		const wss = new WebSocketServer({port: 5000});
+		const newId = async function(length, isUsed){
+			const id = Big('9'.repeat(length)).times(Math.random()).toFixed(0).toString()
+
+			try{
+				const isNotAlreadyUsed = await isUsed(id);
+				return (isNotAlreadyUsed && newId(length, isUsed)) || id;
+			}catch(e){
+				throw e;
+			}
+		}
+
+		const wss = new WebSocketServer({server: this.server});
 		wss.on('connection', async (originalSocket)=>{
-			const socket = new Socket(new SocketWithOn(originalSocket));
+			const sock = new SocketWithOn(originalSocket);
+			const socket = new Socket(sock);
 
-			const id = this.sockets.push(socket)-1;
+			let clientId;
 
-			originalSocket.on('close', ()=>{
-				this.sockets.splice(id, 1);
-				this.clients.splice(id, 1);
+			sock.on('loadId', async receveidId=>{
+				try{
+					if(receveidId === null || !(await this.isSession(receveidId)))
+					{
+						clientId = await newId(25, this.isSession);
+						this.sockets[clientId] = [socket];
+						await this.saveSession(clientId, null);
+					}else{
+						this.sockets[receveidId] = this.sockets[receveidId] || [];
+						this.sockets[receveidId].push(socket);
+						clientId = receveidId;
+					}
+
+					socket.clientId = clientId;
+
+					sock.write('loadId', clientId);
+
+					originalSocket.on('close', ()=>{
+						if(clientId !== undefined)
+						{
+							this.sockets[clientId].splice(this.sockets[clientId].indexOf(socket), 1);
+						}
+					});
+
+					this._addAllEventsToASocket(socket);
+				}catch(e){
+					throw e;
+				}
 			});
-
-			this.clients[id] = this.initClient();
-
-			this.events.forEach(
-				([fileName, cb])=>
-				this.sockets.forEach(
-					socket=>socket.on(fileName, cb)
-				)
-			);
 		});
 	}
 
@@ -136,10 +171,6 @@ class App{
 			contentTypes[path.extname(basePageDir)] || 'text/html',
 			(new Function('baseCSS', 'baseJS', 'return `'+fs.readFileSync(path.resolve(__dirname, basePageDir), 'utf8')+'`'))(this.baseCss, this.baseJs)
 		];
-	}
-
-	setInitClient (cb){
-		this.initClient = cb;
 	}
 
 	setBaseCss (routes){
@@ -202,38 +233,48 @@ class App{
 				this.templatesFolder+fileName+'.tpl',
 				'utf8'
 			)
-			.replace(/action="([^"]+)/g, (m, uri)=>`onsubmit="return handleFormSend(this, '${uri}')`)
-			.replace(/href="([^"]+)/g, (m, uri)=>`href="${uri}" onclick="loadPage('${uri}'); return false;`),
+			.replace(/action="([^"]+)/g, (m, uri)=>`onsubmit="return handleFormSend(this, \\'${uri}\\')`)
+			.replace(/href="([^"]+)/g, (m, uri)=>`href="${uri}" onclick="loadPage(\\'${uri}\\'); return false;`),
 			{collapseWhitespace: true}
 		);
 
 		let self = this;
 
-		const exec = async function(fn, args, user, next){
+		const exec = async function(fn, args, next){
+			const user = await self.loadSession(this.clientId);
+
 			let includes = [];
-			let dt = await fn({form: args, user, include: uri=>includes.push(uri)});
+			const include = uri=>{includes.push(uri); return {};};
 
-			await includes.forEachA(async uri=>{
-				await (self.events.filter(([fileName, cb])=> fileName === uri))[0][1]
-				.call(this, args, data=>{
-					Object.assign(dt, data);
+			let dt = await fn({form: args, include, user}) || {};
+
+			await self.saveSession(this.clientId, user);
+
+			if('redirect' in dt)
+			{
+				next({redirect: dt.redirect});
+			}else{
+				await includes.forEachA(async uri=>{
+					await (self.events.filter(([fileName, cb])=> fileName === uri))[0][1]
+					.call(this, args, data=>{
+						if(data !== undefined && data !== null)
+						{
+							Object.assign(dt, data);
+						}
+					});
 				});
-			});
 
-			next(dt);
+				next(dt);
+			}
 		};
 
 		const intercept = async function(args, resolve, reject){
-			return await exec.call(this, cb, args, self.clients[self.sockets.indexOf(this)], resolve)
+			return await exec.call(this, cb, args, resolve);
 		};
 
+		Object.values(this.sockets).forEach(socket=>socket.on(fileName, intercept));
+
 		this.events.push([fileName, intercept]);
-		this.events.forEach(
-			([fileName, cb])=>
-			this.sockets.forEach(
-				socket=>socket.on(fileName, cb)
-			)
-		);
 	}
 }
 
