@@ -1,6 +1,6 @@
 {
   "name": "spa-simple",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "description": "simple spa framework",
   "main": "index.js",
   "devDependencies": {},
