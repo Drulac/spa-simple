@@ -69,10 +69,12 @@ const include = async(uri, params, dt)=>{
 const parseArgs = ()=>location.search.substr(1).split("&").map(e=>e.split("=")).reduce((result, [key, val])=>key !== '' ? (val ? Object.assign(result,	{[key]: (val=>{try{return JSON.parse(val)}catch(e){return val}})(decodeURIComponent(val))}) : Object.assign(result, {[key]: true})) : result, {});
 
 const loadPage = async (uri, params)=>{
-	console.time(`loading ${uri}`);
+	console.time(`loading ${uri.split('?')[0]}`);
 
 	setUrl(uri);
 	params = Object.assign(params || {}, parseArgs() || {});
+
+	if(Object.values(params).length === 0) params = null;
 
 	uri = uri.split('?')[0];
 
