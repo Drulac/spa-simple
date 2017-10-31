@@ -234,7 +234,8 @@ class App{
 				'utf8'
 			)
 			.replace(/action="([^"]+)/g, (m, uri)=>`onsubmit="return handleFormSend(this, \\'${uri}\\')`)
-			.replace(/href="([^"]+)/g, (m, uri)=>`href="${uri}" onclick="loadPage(\\'${uri}\\'); return false;`),
+			.replace(/href="([^"]+)/g, (m, uri)=>`href="${uri}" onclick="loadPage(\\'${uri}\\'); return false;`)
+			.replace(/<title>([^\<]+)<\/title>/g, (m, title)=>`<script>setTitle(${JSON.stringify(title)})</script>`),
 			{collapseWhitespace: true}
 		);
 

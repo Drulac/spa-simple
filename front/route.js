@@ -125,3 +125,8 @@ const handleFormSend = function(self, uri)
 	loadPage(uri, args);
 	return false;
 }
+
+const setTitle = function(title)
+{
+	document.title = title;
+}
