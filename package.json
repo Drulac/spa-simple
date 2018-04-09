@@ -22,8 +22,10 @@
   },
   "homepage": "https://github.com/Drulac/spa-simple#readme",
   "dependencies": {
-    "big.js": "^5.0.2",
-    "html-minifier": "^3.5.5",
+    "array-async-methods": "0.0.2",
+    "big.js": "^5.0.3",
+    "html-minifier": "^3.5.13",
+    "json-url": "^2.3.4",
     "socket.io-with-get": "^1.2.0",
     "then-fs": "^2.0.0",
     "uws": "^8.14.1",
